@@ -1,0 +1,33 @@
+{
+  "name": "schema-weaver",
+  "version": "1.0.0",
+  "description": "A functional TypeScript library for data validation and transformation using Zod schemas, with support for environment-specific logic and optional memoization.",
+  "keywords": [
+    "typescript",
+    "schema validation",
+    "data transformation",
+    "zod",
+    "functional programming",
+    "memoization",
+    "environment-specific",
+    "tree-shaking"
+  ],
+  "homepage": "https://github.com/Arakiss/schema-weaver",
+  "bugs": {
+    "url": "https://github.com/Arakiss/schema-weaver/issues"
+  },
+  "author": "Petru Arakiss <hi@petruarakiss.com> (https://petruarakiss.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arakiss/schema-weaver.git"
+  },
+  "files": ["dist"],
+  "type": "module",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
