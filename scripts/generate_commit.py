@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.prompt import Confirm
 from rich.text import Text
+from dotenv import load_dotenv
 
 console = Console()
 
@@ -99,6 +100,9 @@ def format_commit_message(commit_data):
     return formatted_message
 
 def main():
+    # Load environment variables from .env file
+    load_dotenv()
+
     console.print("\n[bold magenta]🔮 Analyzing your changes...[/bold magenta]")
     
     changed_files = get_changed_files()
@@ -112,8 +116,8 @@ def main():
 
     diff = get_diff()
     
-    # Check the size of the diff
-    diff_size_threshold = 1000  # Set your threshold here
+    # Get the diff size threshold from environment variables
+    diff_size_threshold = int(os.getenv('DIFF_SIZE_THRESHOLD', 1000))
     if len(diff) > diff_size_threshold:
         console.print("\n[bold yellow]⚠️ Warning: The git diff is quite large. Consider making smaller, atomic commits.[/bold yellow]")
 
