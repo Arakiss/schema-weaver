@@ -32,26 +32,32 @@ Files changed: {files_summary}
 
 Requirements:
 1. Title: Maximum 50 characters, starting with an appropriate gitemoji, followed by the semantic commit type and a brief description.
-2. Body: Organize changes into categories. Each category should have 2-3 bullet points summarizing key changes.
+2. Body: Organize changes into categories. Each category should have an appropriate emoji and 2-3 bullet points summarizing key changes.
 3. Summary: A brief sentence summarizing the overall impact of the changes.
 
 Respond in the following JSON format:
 {{
     "title": "Your commit message title here",
     "body": {{
-        "Category1": [
-            "First change in category 1",
-            "Second change in category 1"
-        ],
-        "Category2": [
-            "First change in category 2",
-            "Second change in category 2"
-        ]
+        "Category1": {{
+            "emoji": "🔧",
+            "changes": [
+                "First change in category 1",
+                "Second change in category 1"
+            ]
+        }},
+        "Category2": {{
+            "emoji": "✨",
+            "changes": [
+                "First change in category 2",
+                "Second change in category 2"
+            ]
+        }}
     }},
     "summary": "A brief summary of the overall changes and their impact."
 }}
 
-Ensure that each category and change is relevant and specific to the diff provided.
+Ensure that each category and change is relevant and specific to the diff provided. Use appropriate and varied emojis for different categories.
 """
 
 def generate_commit_message(prompt):
@@ -82,9 +88,9 @@ def format_commit_message(commit_data):
     summary = commit_data['summary']
 
     formatted_message = f"{title}\n\n"
-    for category, changes in body.items():
-        formatted_message += f"{category}:\n"
-        for change in changes:
+    for category, content in body.items():
+        formatted_message += f"{content['emoji']} {category}:\n"
+        for change in content['changes']:
             formatted_message += f"- {change}\n"
         formatted_message += "\n"
     
