@@ -2,10 +2,13 @@ import os
 import subprocess
 import requests
 import json
-import logging
+import re
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.prompt import Confirm
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+console = Console()
 
 def get_diff():
     return subprocess.check_output(['git', 'diff', '--staged']).decode('utf-8')
@@ -13,8 +16,14 @@ def get_diff():
 def get_changed_files():
     return subprocess.check_output(['git', 'diff', '--staged', '--name-only']).decode('utf-8').splitlines()
 
-def generate_prompt(diff):
+def generate_prompt(diff, changed_files):
+    files_summary = ", ".join(changed_files[:3])
+    if len(changed_files) > 3:
+        files_summary += f" and {len(changed_files) - 3} more"
+
     return f"""Generate a concise and informative commit message for the following git diff, following the semantic commit and gitemoji conventions:
+
+Files changed: {files_summary}
 
 ```
 {diff}
@@ -22,7 +31,7 @@ def generate_prompt(diff):
 
 Requirements:
 1. Title: Maximum 50 characters, starting with an appropriate gitemoji, followed by the semantic commit type and a brief description.
-2. Body: 2-3 short bullet points summarizing the key changes.
+2. Body: 2-3 short bullet points summarizing the key changes. Each point should be max 72 characters.
 
 Focus on the most significant changes and their impact. Be specific but concise.
 
@@ -52,78 +61,66 @@ def generate_commit_message(prompt):
         "messages": [{"role": "user", "content": prompt}]
     }
 
-    try:
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-        response.raise_for_status()
-        response_json = response.json()
-        
-        if 'choices' not in response_json or len(response_json['choices']) == 0:
-            logger.error(f"Unexpected API response structure: {response_json}")
-            raise ValueError("API response does not contain expected 'choices' field")
-        
-        content = response_json['choices'][0]['message']['content']
-        
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"Error decoding JSON from API response content: {content}")
-            raise ValueError(f"API returned non-JSON content: {content}") from e
-        
-    except requests.RequestException as e:
-        logger.error(f"Error making request to OpenAI API: {e}")
-        raise
-    except KeyError as e:
-        logger.error(f"Error accessing key in response: {e}")
-        raise
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
+    response.raise_for_status()
+    
+    content = response.json()['choices'][0]['message']['content']
+    content = re.search(r'\{.*\}', content, re.DOTALL).group()
+    return content
 
-def execute_git_commit(title, body):
-    git_command = f'git commit -m "{title}" -m "{chr(10).join(body)}"'
-    try:
-        subprocess.run(git_command, shell=True, check=True)
-        logger.info("✨ Commit executed successfully!")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"❌ Error executing commit command: {e}")
-        raise
+def format_commit_message(title, body):
+    formatted_title = title[:50]  # Ensure title is not longer than 50 chars
+    formatted_body = [line[:72] for line in body]  # Ensure each line is not longer than 72 chars
+    return formatted_title, formatted_body
 
 def main():
-    logger.info("🔮 Analyzing your changes...")
+    console.print("\n[bold magenta]🔮 Analyzing your changes...[/bold magenta]")
     
     changed_files = get_changed_files()
     if not changed_files:
-        logger.info("🌚 No changes detected in the staging area.")
+        console.print("\n[bold red]🌚 No changes detected in the staging area.[/bold red]")
         return
 
-    logger.info("📜 Changes detected in the following files:")
+    console.print("\n[bold blue]📜 Changes detected in the following files:[/bold blue]")
     for file in changed_files:
-        logger.info(f"  - {file}")
+        console.print(f"  - [cyan]{file}[/cyan]")
 
     diff = get_diff()
     
-    logger.info("🤖 Generating commit message using GPT-4...")
-    try:
-        commit_message = generate_commit_message(generate_prompt(diff))
-        title = commit_message['title']
-        body = commit_message['body']
-    except Exception as e:
-        logger.error(f"Error: Could not generate commit message. {str(e)}")
-        return
-
-    logger.info("\n📝 Generated Commit Message:")
-    logger.info(f"Title: {title}")
-    logger.info("Body:")
-    for line in body:
-        logger.info(f"  - {line}")
-
-    user_input = input("\n🚀 Do you want to execute the git commit command with this message? (y/n): ").lower()
-    if user_input == 'y':
+    with console.status("[bold green]Generating commit message using GPT-4O...[/bold green]"):
         try:
-            execute_git_commit(title, body)
+            commit_message_json = generate_commit_message(generate_prompt(diff, changed_files))
+            commit_message = json.loads(commit_message_json)
+            title, body = format_commit_message(commit_message['title'], commit_message['body'])
+        except json.JSONDecodeError:
+            console.print("[bold red]Error: Failed to parse the generated commit message as JSON.[/bold red]")
+            return
+        except KeyError as e:
+            console.print(f"[bold red]Error: Missing key in generated commit message: {e}[/bold red]")
+            return
         except Exception as e:
-            logger.error(f"Could not execute commit command: {e}")
-    else:
-        logger.info("👍 Commit command not executed. You can use it manually if needed.")
+            console.print(f"[bold red]Error: Failed to generate commit message. {str(e)}[/bold red]")
+            return
 
-    logger.info("✨ Process completed.")
+    console.print("\n[bold green]📝 Generated Commit Message:[/bold green]")
+    console.print(Panel(f"[bold cyan]{title}[/bold cyan]", title="Title"))
+    console.print(Panel("\n".join([f"• {line}" for line in body]), title="Body"))
+
+    git_command = f'git commit -m "{title}" -m "{chr(10).join(body)}"'
+    
+    console.print("\n[bold yellow]🚀 Generated Git Command:[/bold yellow]")
+    console.print(Panel(Syntax(git_command, "bash", theme="monokai", line_numbers=True)))
+
+    if Confirm.ask("Do you want to execute this git command?"):
+        try:
+            subprocess.run(git_command, shell=True, check=True)
+            console.print("\n[bold green]✨ Commit executed successfully![/bold green]")
+        except subprocess.CalledProcessError:
+            console.print("\n[bold red]❌ Failed to execute the commit command. Please check the generated message and try manually.[/bold red]")
+    else:
+        console.print("\n[bold blue]👍 Commit command not executed. You can use it manually if needed.[/bold blue]")
+
+    console.print("\n[bold magenta]✨ Process completed.[/bold magenta]")
 
 if __name__ == "__main__":
     main()
