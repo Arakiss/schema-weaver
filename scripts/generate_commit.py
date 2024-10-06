@@ -112,6 +112,11 @@ def main():
 
     diff = get_diff()
     
+    # Check the size of the diff
+    diff_size_threshold = 1000  # Set your threshold here
+    if len(diff) > diff_size_threshold:
+        console.print("\n[bold yellow]⚠️ Warning: The git diff is quite large. Consider making smaller, atomic commits.[/bold yellow]")
+
     with console.status("[bold green]Generating commit message using GPT-4O...[/bold green]"):
         try:
             commit_message_json = generate_commit_message(generate_prompt(diff, changed_files))
