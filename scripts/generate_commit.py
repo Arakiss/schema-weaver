@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.prompt import Confirm
+from rich.text import Text
 
 console = Console()
 
@@ -21,7 +22,7 @@ def generate_prompt(diff, changed_files):
     if len(changed_files) > 3:
         files_summary += f" and {len(changed_files) - 3} more"
 
-    return f"""Generate a concise and informative commit message for the following git diff, following the semantic commit and gitemoji conventions:
+    return f"""Generate a structured commit message for the following git diff, following the semantic commit and gitemoji conventions:
 
 Files changed: {files_summary}
 
@@ -31,19 +32,26 @@ Files changed: {files_summary}
 
 Requirements:
 1. Title: Maximum 50 characters, starting with an appropriate gitemoji, followed by the semantic commit type and a brief description.
-2. Body: 2-3 short bullet points summarizing the key changes. Each point should be max 72 characters.
-
-Focus on the most significant changes and their impact. Be specific but concise.
+2. Body: Organize changes into categories. Each category should have 2-3 bullet points summarizing key changes.
+3. Summary: A brief sentence summarizing the overall impact of the changes.
 
 Respond in the following JSON format:
 {{
     "title": "Your commit message title here",
-    "body": [
-        "First key point",
-        "Second key point",
-        "Third key point (if necessary)"
-    ]
+    "body": {{
+        "Category1": [
+            "First change in category 1",
+            "Second change in category 1"
+        ],
+        "Category2": [
+            "First change in category 2",
+            "Second change in category 2"
+        ]
+    }},
+    "summary": "A brief summary of the overall changes and their impact."
 }}
+
+Ensure that each category and change is relevant and specific to the diff provided.
 """
 
 def generate_commit_message(prompt):
@@ -68,10 +76,21 @@ def generate_commit_message(prompt):
     content = re.search(r'\{.*\}', content, re.DOTALL).group()
     return content
 
-def format_commit_message(title, body):
-    formatted_title = title[:50]  # Ensure title is not longer than 50 chars
-    formatted_body = [line[:72] for line in body]  # Ensure each line is not longer than 72 chars
-    return formatted_title, formatted_body
+def format_commit_message(commit_data):
+    title = commit_data['title'][:50]
+    body = commit_data['body']
+    summary = commit_data['summary']
+
+    formatted_message = f"{title}\n\n"
+    for category, changes in body.items():
+        formatted_message += f"{category}:\n"
+        for change in changes:
+            formatted_message += f"- {change}\n"
+        formatted_message += "\n"
+    
+    formatted_message += f"{summary}\n"
+
+    return formatted_message
 
 def main():
     console.print("\n[bold magenta]🔮 Analyzing your changes...[/bold magenta]")
@@ -90,8 +109,8 @@ def main():
     with console.status("[bold green]Generating commit message using GPT-4O...[/bold green]"):
         try:
             commit_message_json = generate_commit_message(generate_prompt(diff, changed_files))
-            commit_message = json.loads(commit_message_json)
-            title, body = format_commit_message(commit_message['title'], commit_message['body'])
+            commit_data = json.loads(commit_message_json)
+            formatted_message = format_commit_message(commit_data)
         except json.JSONDecodeError:
             console.print("[bold red]Error: Failed to parse the generated commit message as JSON.[/bold red]")
             return
@@ -103,10 +122,9 @@ def main():
             return
 
     console.print("\n[bold green]📝 Generated Commit Message:[/bold green]")
-    console.print(Panel(f"[bold cyan]{title}[/bold cyan]", title="Title"))
-    console.print(Panel("\n".join([f"• {line}" for line in body]), title="Body"))
+    console.print(Panel(Text(formatted_message), expand=False, border_style="green"))
 
-    git_command = f'git commit -m "{title}" -m "{chr(10).join(body)}"'
+    git_command = f'git commit -m "{commit_data["title"]}" -m "{formatted_message}"'
     
     console.print("\n[bold yellow]🚀 Generated Git Command:[/bold yellow]")
     console.print(Panel(Syntax(git_command, "bash", theme="monokai", line_numbers=True)))
