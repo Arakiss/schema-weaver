@@ -1,3 +1,5 @@
+> ⚠️ **Archived** — Experimental, never reached production usefulness.
+
 # Schema Weaver
 
 A functional TypeScript library for data validation and transformation using Zod schemas, with support for environment-specific logic and optional memoization.
@@ -8,4 +10,3 @@ A functional TypeScript library for data validation and transformation using Zod
 - **Environment-Specific Logic**: Easily define and switch between different sets of Zod schemas based on the environment.
 - **Memoization**: Optimize performance with optional memoization for repeated inputs.
 - **Tree-Shaking**: Ensure minimal bundle size with tree-shaking support.
-
